@@ -234,4 +234,31 @@ mod tests {
             RemoveRegionError::MmapFail(_)
         );
     }
+
+    use proptest::prelude::*;
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
+
+    /// Undo a compacted result vector
+    fn expand(ranges: Vec<(u32, u32)>) -> Vec<u32> {
+        let mut v: Vec<u32> = Vec::new();
+        for (start, len) in ranges {
+            v.extend(start..=(start + len - 1));
+        }
+        return v;
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_compact_page_indices(bset in prop::collection::btree_set(any::<u32>(), 0 .. 1000)) {
+            let mut input: Vec<u32> = bset.into_iter().collect();
+            input.shuffle(&mut thread_rng());
+            let output = compact_page_frame_numbers(&mut input);
+            for (_start, len) in output.iter() {
+                assert!(1 <= *len);
+            }
+            assert!(output.len() <= input.len());
+            prop_assert_eq!(expand(output), input);
+        }
+    }
 }

@@ -21,3 +21,6 @@ snapshot = { path = "../snapshot" }
 utils = { path = "../utils" }
 virtio_gen = { path = "../virtio_gen" }
 
+[dev-dependencies]
+proptest = ">=0.10.1"
+rand = ">=0.7"
