@@ -116,6 +116,44 @@ pub(crate) fn remove_range(
     }
 }
 
+#[cfg(rmc)]
+mod rmc {
+    use super::*;
+
+    fn expand(ranges: Vec<(u32, u32)>) -> Vec<u32> {
+        let mut v: Vec<u32> = Vec::new();
+        for (start, len) in ranges {
+            v.extend(start..=(start + len - 1));
+        }
+        return v;
+    }
+
+    fn __nondet<T>() -> T {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    fn rmc_compact_harness() {
+        let mut input = vec![0; 3];
+        for i in 0..input.len() {
+            input[i] = __nondet();
+            if input[i] == u32::MAX {
+                return;
+            }
+        }
+        let output = compact_page_frame_numbers(&mut input);
+        for (_start, len) in output.iter() {
+            assert!(1 <= *len);
+        }
+        assert!(output.len() <= input.len());
+        let expanded_output = expand(output);
+        let i: usize = __nondet();
+        if i < expanded_output.len() {
+            assert!(expanded_output[i] == input[i]);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
