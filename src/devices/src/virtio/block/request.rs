@@ -235,6 +235,25 @@ impl Request {
     }
 }
 
+#[cfg(rmc)]
+mod rmc_tests {
+    use super::*;
+    use crate::virtio::queue::tests::*;
+    use crate::virtio::test_utils::VirtQueue;
+    use vm_memory::{Address, GuestAddress, GuestMemory};
+
+    fn __nondet<T>() -> T {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    fn parse_harness() {
+        let mem = &GuestMemoryMmap::from_ranges(&[(GuestAddress(0), 0x10000)]).unwrap();
+        let desc : DescriptorChain = __nondet();
+        Request::parse(&desc, &mem);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -394,6 +394,11 @@ impl Queue {
     }
 }
 
+#[cfg(rmc)]
+pub(crate) mod tests {
+    pub use super::*;
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
 
