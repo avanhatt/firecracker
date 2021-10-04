@@ -41,6 +41,8 @@ pub use vm_memory_upstream::mmap::{check_file_offset, Error};
 // The maximum number of bytes that can be read/written at a time.
 static MAX_ACCESS_CHUNK: usize = 4096;
 
+include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
+
 /// [`GuestMemoryRegion`](trait.GuestMemoryRegion.html) implementation that mmaps the guest's
 /// memory region in the current process.
 ///
@@ -107,10 +109,6 @@ impl Deref for GuestRegionMmap {
     fn deref(&self) -> &MmapRegion {
         &self.mapping
     }
-}
-
-fn __nondet<T>() -> T {
-    unimplemented!()
 }
 
 impl Bytes<MemoryRegionAddress> for GuestRegionMmap {
@@ -379,17 +377,25 @@ impl GuestMemoryMmap {
                     let size = x.borrow().1;
 
                     if let Some(ref f_off) = x.borrow().2 {
-                        MmapRegion::from_file(f_off.clone(), size)
+                        Ok(__nondet::<MmapRegion>())
+                        // __nondet::<result::Result<MmapRegion, MmapRegionError>>()
+                        // MmapRegion::from_file(f_off.clone(), size)
                     } else {
-                        MmapRegion::new(size)
+                        Ok(__nondet::<MmapRegion>())
+                        // __nondet::<result::Result<MmapRegion, MmapRegionError>>()
+                        // MmapRegion::new(size)
                     }
                     .map_err(Error::MmapRegion)
                     .and_then(|r| {
-                        let mut mmap = GuestRegionMmap::new(r, guest_base)?;
-                        if track_dirty_pages {
-                            mmap.enable_dirty_page_tracking();
+                        if let Ok(mut mmap) = GuestRegionMmap::new(r, guest_base) {
+                            if track_dirty_pages {
+                                mmap.enable_dirty_page_tracking();
+                            }
+                            Ok(mmap)
+                        } else {
+                            __VERIFIER_assume(false);
+                            unimplemented!()
                         }
-                        Ok(mmap)
                     })
                 })
                 .collect::<result::Result<Vec<_>, Error>>()?,

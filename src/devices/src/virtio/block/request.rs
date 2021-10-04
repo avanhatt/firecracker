@@ -17,6 +17,8 @@ use super::super::DescriptorChain;
 use super::device::DiskProperties;
 use super::{Error, SECTOR_SHIFT, SECTOR_SIZE};
 
+include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
+
 #[derive(Debug)]
 pub enum ExecuteError {
     BadRequest(Error),
@@ -112,10 +114,12 @@ impl RequestHeader {
 }
 
 impl Request {
+
     pub fn parse(
         avail_desc: &DescriptorChain,
         mem: &GuestMemoryMmap,
     ) -> result::Result<Request, Error> {
+
         // The head contains the request type which MUST be readable.
         if avail_desc.is_write_only() {
             return Err(Error::UnexpectedWriteOnlyDescriptor);
@@ -242,15 +246,69 @@ mod rmc_tests {
     use crate::virtio::test_utils::VirtQueue;
     use vm_memory::{Address, GuestAddress, GuestMemory};
 
-    fn __nondet<T>() -> T {
-        unimplemented!()
+    fn is_nonzero_pow2(x: u16) -> bool {
+        unsafe { (x != 0) && ((x & (x - 1)) == 0) }
     }
 
     #[no_mangle]
     fn parse_harness() {
         let mem = &GuestMemoryMmap::from_ranges(&[(GuestAddress(0), 0x10000)]).unwrap();
-        let desc : DescriptorChain = __nondet();
-        Request::parse(&desc, &mem);
+        let queue_size: u16 = __nondet();
+        __VERIFIER_assume(is_nonzero_pow2(queue_size));
+
+        let index: u16 = __nondet();
+        let desc_table = GuestAddress(__nondet::<u64>() & 0xffff_ffff_ffff_fff0);
+        let desc = DescriptorChain::checked_new(&mem, desc_table, queue_size, index);
+        match desc {
+            Some(x) => {
+                let addr = desc_table.0 + (index as u64) * 16; //< this arithmetic cannot fail
+                // unsafe {
+                //     if let Some(v) = TRACK_READ_OBJ {
+                //         assert!(v.0 == addr)
+                //     }
+                // }
+                assert!(x.index == index);
+                assert!(x.index < queue_size);
+                if x.has_next() {
+                    assert!(x.next < queue_size);
+                }
+                let req = Request::parse(&x, &mem);
+                // if let Ok(req) = req {
+                //     unsafe {
+                //         assert!(!TRACK_CHECKED_OFFSET_NONE);
+                //     }
+                // }
+            }
+            None => assert!(true),
+        };
+    }
+
+    #[no_mangle]
+    fn parse_harness_unexpected_write_test() {
+        let mem = &GuestMemoryMmap::from_ranges(&[(GuestAddress(0), 0x10000)]).unwrap();
+        let vq = VirtQueue::new(GuestAddress(0), &mem, 16);
+
+        assert!(vq.end().0 < 0x1000);
+
+        let request_type_descriptor = 0;
+        let data_descriptor = 1;
+        let status_descriptor = 2;
+
+        vq.avail.ring[0].set(0);
+        vq.avail.idx.set(1);
+
+        {
+            let mut q = vq.create_queue();
+            // Write only request type descriptor.
+            vq.dtable[request_type_descriptor].set(0x1000, 0x1000, VIRTQ_DESC_F_WRITE, 1);
+            let request_header = RequestHeader::new(VIRTIO_BLK_T_OUT, 114);
+            mem.write_obj::<RequestHeader>(request_header, GuestAddress(0x1000))
+                .unwrap();
+            assert!(matches!(
+                Request::parse(&q.pop(mem).unwrap(), mem),
+                Err(Error::UnexpectedWriteOnlyDescriptor)
+            ));
+        }
     }
 }
 
