@@ -24,7 +24,7 @@ goto-cc --function $HARNESS *.out -o $HARNESS/a.out
 goto-instrument  --function-pointer-restrictions-file restrictions.json --generate-function-body mmap --generate-function-body-options assert-false --drop-unused-functions --reachability-slice $HARNESS/a.out $HARNESS/b.out 2>&1 | tee $HARNESS/goto-instrument.log
 goto-instrument --remove-function-pointers $HARNESS/b.out $HARNESS/c.out 2>&1 | tee $HARNESS/goto-instrument-remove-function-pointers.log
 goto-instrument --dump-c $HARNESS/c.out $HARNESS/genc.c
-time cbmc --trace $HARNESS/b.out --object-bits 11 --unwind 1 --unwinding-assertions 2>&1 | tee $HARNESS/cbmc.log
+time cbmc --trace $HARNESS/b.out --object-bits 11 --unwind 1 2>&1 | tee $HARNESS/cbmc.log
 
 # # echo "Running just CBMC"
 # HARNESS=parse_harness
