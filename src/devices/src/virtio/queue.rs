@@ -14,6 +14,9 @@ use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
 };
 
+#[cfg(rmc)]
+include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
+
 pub(super) const VIRTQ_DESC_F_NEXT: u16 = 0x1;
 pub(super) const VIRTQ_DESC_F_WRITE: u16 = 0x2;
 
@@ -86,7 +89,48 @@ pub struct DescriptorChain<'a> {
     pub next: u16,
 }
 
+//pub static mut TRACKED_DESCRIPTORS : &[Descriptor];
+
 impl<'a> DescriptorChain<'a> {
+    #[cfg(rmc)]
+    pub fn checked_new(
+        mem: &GuestMemoryMmap,
+        desc_table: GuestAddress,
+        queue_size: u16,
+        index: u16,
+    ) -> Option<DescriptorChain> {
+        if index >= queue_size {
+            return None;
+        }
+
+        // overapproximate checked_offset
+        if __nondet() {
+            return None;
+        }
+
+        // mem can access 16 bytes from desc_table[index]
+        // model as arbitrary bytes
+        let desc : Descriptor = __nondet();
+        let chain = DescriptorChain {
+            mem,
+            desc_table,
+            queue_size,
+            ttl: queue_size,
+            index,
+            addr: GuestAddress(desc.addr),
+            len: desc.len,
+            flags: desc.flags,
+            next: desc.next,
+        };
+
+        if chain.is_valid() {
+            Some(chain)
+        } else {
+            None
+        }
+    }
+
+    #[cfg(not(rmc))]
     pub fn checked_new(
         mem: &GuestMemoryMmap,
         desc_table: GuestAddress,
@@ -392,11 +436,6 @@ impl Queue {
         let addr = self.avail_ring.unchecked_add(2);
         Wrapping(mem.read_obj::<u16>(addr).unwrap())
     }
-}
-
-#[cfg(rmc)]
-pub(crate) mod tests {
-    pub use super::*;
 }
 
 #[cfg(test)]
