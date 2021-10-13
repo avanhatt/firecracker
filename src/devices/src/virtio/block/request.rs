@@ -125,16 +125,54 @@ impl RequestHeader {
     }
 }
 
+// #[derive(Debug)]
+pub struct CustomError {}
+
+impl CustomError {
+    fn new() -> CustomError {
+        CustomError{}
+    }
+}
+
+impl Drop for CustomError {
+    fn drop(&mut self) {
+        assert!(1234567 == 0, "avhdroperror")
+    }
+}
+
+
+impl std::error::Error for CustomError {
+    fn description(&self) -> &str {
+        "custom error"
+    }
+}
+
+impl std::fmt::Display for CustomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "custom error")
+    }
+}
+
+impl std::fmt::Debug for CustomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "custom error")
+    }
+}
+
+
 impl Request {
 
     pub fn parse(
         avail_desc: &DescriptorChain,
         mem: &GuestMemoryMmap,
     ) -> result::Result<Request, Error> {
-
         // The head contains the request type which MUST be readable.
+        // return unimplemented!("testunimplemented");
+        return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError::new())));
+
         if avail_desc.is_write_only() {
             return Err(Error::UnexpectedWriteOnlyDescriptor);
+            // return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError{})))
         }
 
         let request_header = RequestHeader::read_from(mem, avail_desc.addr)?;
@@ -188,7 +226,7 @@ impl Request {
         }
 
         req.status_addr = status_desc.addr;
-
+        
         Ok(req)
     }
 
@@ -268,22 +306,43 @@ mod rmc_tests {
 
         let index: u16 = __nondet();
         let desc_table = GuestAddress(__nondet::<u64>());
-        match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
-            Some(desc) => {
-                let addr = desc_table.0 + (index as u64) * 16;
-                assert!(desc.index == index);
-                assert!(desc.index < queue_size);
-                if desc.has_next() {
-                    assert!(desc.next < queue_size);
-                }
-                match Request::parse(&desc, &mem) {
-                    Ok(req) => {
-
+        {
+            match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
+                Some(desc) => {
+                    __VERIFIER_assume((index as u64) * 16 < u64::MAX - desc_table.0);
+                    let addr = desc_table.0 + (index as u64) * 16;
+                    assert!(desc.index == index);
+                    assert!(desc.index < queue_size);
+                    if desc.has_next() {
+                        assert!(desc.next < queue_size);
                     }
-                    Err(err) => {}
-                }
-            },
-            None => {},
+                    match Request::parse(&desc, &mem) {
+                        Ok(req) => {
+                            // assert!(!desc.is_write_only());
+
+                        }
+                        Err(err) => {
+                            // match err {
+                            //     Error::UnexpectedWriteOnlyDescriptor => {
+                            //         // assert!(desc.is_write_only())
+                            //     }
+                            //     Error::UnexpectedReadOnlyDescriptor => {
+
+                            //     }
+                            //     Error::DescriptorChainTooShort => {
+                            //         // assert!(!desc.is_write_only());
+                            //         // assert!(desc.next_descriptor().is_none())
+                            //     }
+                            //     Error::DescriptorLengthTooSmall => {
+
+                            //     }
+                            //     _ => assert!(false, "unexpected error")
+                            // }
+                        }
+                    }
+                },
+                None => {},
+            }
         }
     }
 }

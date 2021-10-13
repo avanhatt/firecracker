@@ -324,6 +324,9 @@ impl GuestMemoryRegion for GuestRegionMmap {
 #[derive(Clone, Debug, Default)]
 pub struct GuestMemoryMmap {
     regions: Vec<Arc<GuestRegionMmap>>,
+    // 
+    // #[cfg(rmc)]
+    // rmc_data: bool, 
 }
 
 impl GuestMemoryMmap {
@@ -432,6 +435,10 @@ impl GuestMemoryMmap {
             }
         }
 
+        // #[cfg(rmc)]
+        // Ok(Self { regions, rmc_data: false })
+
+        // #[cfg(not(rmc))]
         Ok(Self { regions })
     }
 
