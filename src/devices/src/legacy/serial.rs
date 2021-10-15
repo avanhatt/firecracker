@@ -296,6 +296,7 @@ impl Serial {
     fn recv_bytes(&mut self) -> io::Result<usize> {
         let avail_cap = self.avail_buffer_capacity();
         if avail_cap == 0 {
+            assert!(false, "no cap");
             return Err(io::Error::from_raw_os_error(libc::ENOBUFS));
         }
 
@@ -306,9 +307,11 @@ impl Serial {
                 self.raw_input(&out[..count])?;
             }
 
+            assert!(false, "ok");
             return Ok(count);
         }
 
+        assert!(false, "raw os error");
         Err(io::Error::from_raw_os_error(libc::ENOTTY))
     }
 
@@ -621,12 +624,12 @@ mod tests {
         );
 
         // Send more than buffer capacity bytes.
-        let size: usize = __nondet();
+        // let size: usize = __nondet();
+        let size: usize = 1;
 
-        __VERIFIER_assume(size < 2);
-        let xs : [u8; 2] = __nondet();  
-
+        // __VERIFIER_assume(size < 2);
         let stdin_bytes = vec![0u8; size + 1];
+
         let write_res = serial_in_out.write(&stdin_bytes);
         assert!(write_res.is_ok());
         let mut recv_res = serial.recv_bytes();

@@ -10,6 +10,7 @@ use snapshot::Persist;
 use versionize::{VersionMap, Versionize, VersionizeResult};
 use versionize_derive::Versionize;
 use vm_memory::{address::Address, GuestAddress, GuestMemoryMmap};
+use super::{ActivateResult};
 
 use std::num::Wrapping;
 use std::sync::atomic::Ordering;
@@ -149,6 +150,125 @@ impl VirtioDeviceState {
         Ok(queues)
     }
 }
+mod rmc {
+
+use super::*;
+use crate::virtio::{net, Block, Net, Vsock, VsockUnixBackend};
+
+use crate::virtio::block::test_utils::default_block_with_path;
+use crate::virtio::test_utils::default_mem;
+use utils::tempfile::TempFile;
+
+use utils::byte_order::{read_le_u32, write_le_u32};
+
+use utils::eventfd::EventFd;
+use vm_memory::GuestMemoryMmap;
+use std::sync::atomic::{AtomicUsize};
+
+pub(crate) struct DummyDevice {
+    acked_features: u64,
+    avail_features: u64,
+    interrupt_evt: EventFd,
+    interrupt_status: Arc<AtomicUsize>,
+    queue_evts: Vec<EventFd>,
+    queues: Vec<Queue>,
+    device_activated: bool,
+    config_bytes: [u8; 0xeff],
+}
+
+impl DummyDevice {
+    pub(crate) fn new() -> Self {
+        DummyDevice {
+            acked_features: 0,
+            avail_features: 0,
+            interrupt_evt: EventFd::new(libc::EFD_NONBLOCK).unwrap(),
+            interrupt_status: Arc::new(AtomicUsize::new(0)),
+            queue_evts: vec![
+                EventFd::new(libc::EFD_NONBLOCK).unwrap(),
+                EventFd::new(libc::EFD_NONBLOCK).unwrap(),
+            ],
+            queues: vec![Queue::new(16), Queue::new(32)],
+            device_activated: false,
+            config_bytes: [0; 0xeff],
+        }
+    }
+
+    fn set_avail_features(&mut self, avail_features: u64) {
+        self.avail_features = avail_features;
+    }
+}
+
+impl VirtioDevice for DummyDevice {
+    fn device_type(&self) -> u32 {
+        123
+    }
+
+    fn read_config(&self, offset: u64, data: &mut [u8]) {
+        data.copy_from_slice(&self.config_bytes[offset as usize..]);
+    }
+
+    fn write_config(&mut self, offset: u64, data: &[u8]) {
+        for (i, item) in data.iter().enumerate() {
+            self.config_bytes[offset as usize + i] = *item;
+        }
+    }
+
+    fn avail_features(&self) -> u64 {
+        self.avail_features
+    }
+
+    fn acked_features(&self) -> u64 {
+        self.acked_features
+    }
+
+    fn set_acked_features(&mut self, acked_features: u64) {
+        self.acked_features = acked_features;
+    }
+
+    fn activate(&mut self, _: GuestMemoryMmap) -> ActivateResult {
+        self.device_activated = true;
+        Ok(())
+    }
+
+    fn queues(&self) -> &[Queue] {
+        &self.queues
+    }
+
+    fn queues_mut(&mut self) -> &mut [Queue] {
+        &mut self.queues
+    }
+
+    fn queue_events(&self) -> &[EventFd] {
+        &self.queue_evts
+    }
+
+    fn interrupt_evt(&self) -> &EventFd {
+        &self.interrupt_evt
+    }
+
+    fn interrupt_status(&self) -> Arc<AtomicUsize> {
+        self.interrupt_status.clone()
+    }
+
+    fn is_activated(&self) -> bool {
+        self.device_activated
+    }
+}
+#[no_mangle]
+pub fn test_virtio_device_state_versionize() {
+    let dummy = DummyDevice::new();
+    // let mut mem = vec![0; 32];
+    // let version_map = VersionMap::new();
+
+    // let state = VirtioDeviceState::from_device(&dummy);
+    // state
+    //     .serialize(&mut mem.as_mut_slice(), &version_map, 1)
+    //     .unwrap();
+
+    // let restored_state =
+    //     VirtioDeviceState::deserialize(&mut mem.as_slice(), &version_map, 1).unwrap();
+    // assert_eq!(restored_state, state);
+}
 
 #[derive(Clone, Debug, PartialEq, Versionize)]
 // NOTICE: Any changes to this structure require a snapshot version bump.
@@ -195,232 +315,233 @@ impl Persist<'_> for MmioTransport {
         Ok(transport)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::virtio::mmio::tests::DummyDevice;
-    use crate::virtio::{net, Block, Net, Vsock, VsockUnixBackend};
-
-    use crate::virtio::block::test_utils::default_block_with_path;
-    use crate::virtio::test_utils::default_mem;
-    use utils::tempfile::TempFile;
-
-    const DEFAULT_QUEUE_MAX_SIZE: u16 = 256;
-    impl Default for QueueState {
-        fn default() -> QueueState {
-            QueueState {
-                max_size: DEFAULT_QUEUE_MAX_SIZE,
-                size: DEFAULT_QUEUE_MAX_SIZE,
-                ready: false,
-                desc_table: 0,
-                avail_ring: 0,
-                used_ring: 0,
-                next_avail: Wrapping(0),
-                next_used: Wrapping(0),
-            }
-        }
-    }
-
-    impl Default for VirtioDeviceState {
-        fn default() -> VirtioDeviceState {
-            VirtioDeviceState {
-                device_type: 0,
-                avail_features: 0,
-                acked_features: 0,
-                queues: vec![],
-                interrupt_status: 0,
-                activated: false,
-            }
-        }
-    }
-
-    #[test]
-    fn test_virtiodev_sanity_checks() {
-        let max_size = DEFAULT_QUEUE_MAX_SIZE;
-        let mut state = VirtioDeviceState::default();
-        let mem = default_mem();
-        // Valid checks.
-        state.build_queues_checked(&mem, 0, 0, max_size).unwrap();
-        // Invalid dev-type.
-        state
-            .build_queues_checked(&mem, 1, 0, max_size)
-            .unwrap_err();
-        // Invalid num-queues.
-        state
-            .build_queues_checked(&mem, 0, 1, max_size)
-            .unwrap_err();
-        // Unavailable features acked.
-        state.acked_features = 1;
-        state
-            .build_queues_checked(&mem, 0, 0, max_size)
-            .unwrap_err();
-
-        // Validate queue sanity checks.
-        let mut state = VirtioDeviceState::default();
-        let good_q = QueueState::default();
-        state.queues = vec![good_q];
-        // Valid.
-        state
-            .build_queues_checked(&mem, 0, state.queues.len(), max_size)
-            .unwrap();
-
-        // Invalid max queue size.
-        let mut bad_q = QueueState::default();
-        bad_q.max_size = max_size + 1;
-        state.queues = vec![bad_q];
-        state
-            .build_queues_checked(&mem, 0, state.queues.len(), max_size)
-            .unwrap_err();
-
-        // Invalid: size > max.
-        let mut bad_q = QueueState::default();
-        bad_q.size = max_size + 1;
-        state.queues = vec![bad_q];
-        state
-            .build_queues_checked(&mem, 0, state.queues.len(), max_size)
-            .unwrap_err();
-
-        // activated && !q.is_valid()
-        let bad_q = QueueState::default();
-        state.queues = vec![bad_q];
-        state.activated = true;
-        state
-            .build_queues_checked(&mem, 0, state.queues.len(), max_size)
-            .unwrap_err();
-    }
-
-    #[test]
-    fn test_queue_persistence() {
-        let queue = Queue::new(128);
-
-        let mut mem = vec![0; 4096];
-        let version_map = VersionMap::new();
-
-        queue
-            .save()
-            .serialize(&mut mem.as_mut_slice(), &version_map, 1)
-            .unwrap();
-
-        let restored_queue = Queue::restore(
-            (),
-            &QueueState::deserialize(&mut mem.as_slice(), &version_map, 1).unwrap(),
-        )
-        .unwrap();
-
-        assert_eq!(restored_queue, queue);
-    }
-
-    #[test]
-    fn test_virtio_device_state_versionize() {
-        let dummy = DummyDevice::new();
-        let mut mem = vec![0; 4096];
-        let version_map = VersionMap::new();
-
-        let state = VirtioDeviceState::from_device(&dummy);
-        state
-            .serialize(&mut mem.as_mut_slice(), &version_map, 1)
-            .unwrap();
-
-        let restored_state =
-            VirtioDeviceState::deserialize(&mut mem.as_slice(), &version_map, 1).unwrap();
-        assert_eq!(restored_state, state);
-    }
-
-    impl PartialEq for MmioTransport {
-        fn eq(&self, other: &MmioTransport) -> bool {
-            let self_dev_type = self.device().lock().unwrap().device_type();
-            self.acked_features_select == other.acked_features_select &&
-                self.features_select == other.features_select &&
-                self.queue_select == other.queue_select &&
-                self.device_status == other.device_status &&
-                self.config_generation == other.config_generation &&
-                self.interrupt_status.load(Ordering::SeqCst) == other.interrupt_status.load(Ordering::SeqCst) &&
-                // Only checking equality of device type, actual device (de)ser is tested by that
-                // device's tests.
-                self_dev_type == other.device().lock().unwrap().device_type()
-        }
-    }
-
-    fn generic_mmiotransport_persistence_test(
-        mmio_transport: MmioTransport,
-        mem: GuestMemoryMmap,
-        device: Arc<Mutex<dyn VirtioDevice>>,
-    ) {
-        let mut buf = vec![0; 4096];
-        let version_map = VersionMap::new();
-
-        mmio_transport
-            .save()
-            .serialize(&mut buf.as_mut_slice(), &version_map, 1)
-            .unwrap();
-
-        let restore_args = MmioTransportConstructorArgs { mem, device };
-        let restored_mmio_transport = MmioTransport::restore(
-            restore_args,
-            &MmioTransportState::deserialize(&mut buf.as_slice(), &version_map, 1).unwrap(),
-        )
-        .unwrap();
-
-        assert_eq!(restored_mmio_transport, mmio_transport);
-    }
-
-    fn default_block() -> (MmioTransport, GuestMemoryMmap, Arc<Mutex<Block>>) {
-        let mem = default_mem();
-
-        // Create backing file.
-        let f = TempFile::new().unwrap();
-        f.as_file().set_len(0x1000).unwrap();
-        let block = default_block_with_path(f.as_path().to_str().unwrap().to_string());
-        let block = Arc::new(Mutex::new(block));
-        let mmio_transport = MmioTransport::new(mem.clone(), block.clone());
-
-        (mmio_transport, mem, block)
-    }
-
-    fn default_net() -> (MmioTransport, GuestMemoryMmap, Arc<Mutex<Net>>) {
-        let mem = default_mem();
-        let net = Arc::new(Mutex::new(net::test_utils::default_net()));
-        let mmio_transport = MmioTransport::new(mem.clone(), net.clone());
-
-        (mmio_transport, mem, net)
-    }
-
-    fn default_vsock() -> (
-        MmioTransport,
-        GuestMemoryMmap,
-        Arc<Mutex<Vsock<VsockUnixBackend>>>,
-    ) {
-        let mem = default_mem();
-
-        let guest_cid = 52;
-        let mut temp_uds_path = TempFile::new().unwrap();
-        // Remove the file so the path can be used by the socket.
-        temp_uds_path.remove().unwrap();
-        let uds_path = String::from(temp_uds_path.as_path().to_str().unwrap());
-        let backend = VsockUnixBackend::new(guest_cid, uds_path).unwrap();
-        let vsock = Vsock::new(guest_cid, backend).unwrap();
-        let vsock = Arc::new(Mutex::new(vsock));
-        let mmio_transport = MmioTransport::new(mem.clone(), vsock.clone());
-
-        (mmio_transport, mem, vsock)
-    }
-
-    #[test]
-    fn test_block_over_mmiotransport_persistence() {
-        let (mmio_transport, mem, block) = default_block();
-        generic_mmiotransport_persistence_test(mmio_transport, mem, block);
-    }
-
-    #[test]
-    fn test_net_over_mmiotransport_persistence() {
-        let (mmio_transport, mem, net) = default_net();
-        generic_mmiotransport_persistence_test(mmio_transport, mem, net);
-    }
-
-    #[test]
-    fn test_vsock_over_mmiotransport_persistence() {
-        let (mmio_transport, mem, vsock) = default_vsock();
-        generic_mmiotransport_persistence_test(mmio_transport, mem, vsock);
-    }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::virtio::mmio::tests::DummyDevice;
+//     use crate::virtio::{net, Block, Net, Vsock, VsockUnixBackend};
+
+//     use crate::virtio::block::test_utils::default_block_with_path;
+//     use crate::virtio::test_utils::default_mem;
+//     use utils::tempfile::TempFile;
+
+//     const DEFAULT_QUEUE_MAX_SIZE: u16 = 256;
+//     impl Default for QueueState {
+//         fn default() -> QueueState {
+//             QueueState {
+//                 max_size: DEFAULT_QUEUE_MAX_SIZE,
+//                 size: DEFAULT_QUEUE_MAX_SIZE,
+//                 ready: false,
+//                 desc_table: 0,
+//                 avail_ring: 0,
+//                 used_ring: 0,
+//                 next_avail: Wrapping(0),
+//                 next_used: Wrapping(0),
+//             }
+//         }
+//     }
+
+//     impl Default for VirtioDeviceState {
+//         fn default() -> VirtioDeviceState {
+//             VirtioDeviceState {
+//                 device_type: 0,
+//                 avail_features: 0,
+//                 acked_features: 0,
+//                 queues: vec![],
+//                 interrupt_status: 0,
+//                 activated: false,
+//             }
+//         }
+//     }
+
+//     #[test]
+//     fn test_virtiodev_sanity_checks() {
+//         let max_size = DEFAULT_QUEUE_MAX_SIZE;
+//         let mut state = VirtioDeviceState::default();
+//         let mem = default_mem();
+//         // Valid checks.
+//         state.build_queues_checked(&mem, 0, 0, max_size).unwrap();
+//         // Invalid dev-type.
+//         state
+//             .build_queues_checked(&mem, 1, 0, max_size)
+//             .unwrap_err();
+//         // Invalid num-queues.
+//         state
+//             .build_queues_checked(&mem, 0, 1, max_size)
+//             .unwrap_err();
+//         // Unavailable features acked.
+//         state.acked_features = 1;
+//         state
+//             .build_queues_checked(&mem, 0, 0, max_size)
+//             .unwrap_err();
+
+//         // Validate queue sanity checks.
+//         let mut state = VirtioDeviceState::default();
+//         let good_q = QueueState::default();
+//         state.queues = vec![good_q];
+//         // Valid.
+//         state
+//             .build_queues_checked(&mem, 0, state.queues.len(), max_size)
+//             .unwrap();
+
+//         // Invalid max queue size.
+//         let mut bad_q = QueueState::default();
+//         bad_q.max_size = max_size + 1;
+//         state.queues = vec![bad_q];
+//         state
+//             .build_queues_checked(&mem, 0, state.queues.len(), max_size)
+//             .unwrap_err();
+
+//         // Invalid: size > max.
+//         let mut bad_q = QueueState::default();
+//         bad_q.size = max_size + 1;
+//         state.queues = vec![bad_q];
+//         state
+//             .build_queues_checked(&mem, 0, state.queues.len(), max_size)
+//             .unwrap_err();
+
+//         // activated && !q.is_valid()
+//         let bad_q = QueueState::default();
+//         state.queues = vec![bad_q];
+//         state.activated = true;
+//         state
+//             .build_queues_checked(&mem, 0, state.queues.len(), max_size)
+//             .unwrap_err();
+//     }
+
+//     #[test]
+//     fn test_queue_persistence() {
+//         let queue = Queue::new(128);
+
+//         let mut mem = vec![0; 4096];
+//         let version_map = VersionMap::new();
+
+//         queue
+//             .save()
+//             .serialize(&mut mem.as_mut_slice(), &version_map, 1)
+//             .unwrap();
+
+//         let restored_queue = Queue::restore(
+//             (),
+//             &QueueState::deserialize(&mut mem.as_slice(), &version_map, 1).unwrap(),
+//         )
+//         .unwrap();
+
+//         assert_eq!(restored_queue, queue);
+//     }
+
+//     #[test]
+//     fn test_virtio_device_state_versionize() {
+//         let dummy = DummyDevice::new();
+//         let mut mem = vec![0; 4096];
+//         let version_map = VersionMap::new();
+
+//         let state = VirtioDeviceState::from_device(&dummy);
+//         state
+//             .serialize(&mut mem.as_mut_slice(), &version_map, 1)
+//             .unwrap();
+
+//         let restored_state =
+//             VirtioDeviceState::deserialize(&mut mem.as_slice(), &version_map, 1).unwrap();
+//         assert_eq!(restored_state, state);
+//     }
+
+//     impl PartialEq for MmioTransport {
+//         fn eq(&self, other: &MmioTransport) -> bool {
+//             let self_dev_type = self.device().lock().unwrap().device_type();
+//             self.acked_features_select == other.acked_features_select &&
+//                 self.features_select == other.features_select &&
+//                 self.queue_select == other.queue_select &&
+//                 self.device_status == other.device_status &&
+//                 self.config_generation == other.config_generation &&
+//                 self.interrupt_status.load(Ordering::SeqCst) == other.interrupt_status.load(Ordering::SeqCst) &&
+//                 // Only checking equality of device type, actual device (de)ser is tested by that
+//                 // device's tests.
+//                 self_dev_type == other.device().lock().unwrap().device_type()
+//         }
+//     }
+
+//     fn generic_mmiotransport_persistence_test(
+//         mmio_transport: MmioTransport,
+//         mem: GuestMemoryMmap,
+//         device: Arc<Mutex<dyn VirtioDevice>>,
+//     ) {
+//         let mut buf = vec![0; 4096];
+//         let version_map = VersionMap::new();
+
+//         mmio_transport
+//             .save()
+//             .serialize(&mut buf.as_mut_slice(), &version_map, 1)
+//             .unwrap();
+
+//         let restore_args = MmioTransportConstructorArgs { mem, device };
+//         let restored_mmio_transport = MmioTransport::restore(
+//             restore_args,
+//             &MmioTransportState::deserialize(&mut buf.as_slice(), &version_map, 1).unwrap(),
+//         )
+//         .unwrap();
+
+//         assert_eq!(restored_mmio_transport, mmio_transport);
+//     }
+
+//     fn default_block() -> (MmioTransport, GuestMemoryMmap, Arc<Mutex<Block>>) {
+//         let mem = default_mem();
+
+//         // Create backing file.
+//         let f = TempFile::new().unwrap();
+//         f.as_file().set_len(0x1000).unwrap();
+//         let block = default_block_with_path(f.as_path().to_str().unwrap().to_string());
+//         let block = Arc::new(Mutex::new(block));
+//         let mmio_transport = MmioTransport::new(mem.clone(), block.clone());
+
+//         (mmio_transport, mem, block)
+//     }
+
+//     fn default_net() -> (MmioTransport, GuestMemoryMmap, Arc<Mutex<Net>>) {
+//         let mem = default_mem();
+//         let net = Arc::new(Mutex::new(net::test_utils::default_net()));
+//         let mmio_transport = MmioTransport::new(mem.clone(), net.clone());
+
+//         (mmio_transport, mem, net)
+//     }
+
+//     fn default_vsock() -> (
+//         MmioTransport,
+//         GuestMemoryMmap,
+//         Arc<Mutex<Vsock<VsockUnixBackend>>>,
+//     ) {
+//         let mem = default_mem();
+
+//         let guest_cid = 52;
+//         let mut temp_uds_path = TempFile::new().unwrap();
+//         // Remove the file so the path can be used by the socket.
+//         temp_uds_path.remove().unwrap();
+//         let uds_path = String::from(temp_uds_path.as_path().to_str().unwrap());
+//         let backend = VsockUnixBackend::new(guest_cid, uds_path).unwrap();
+//         let vsock = Vsock::new(guest_cid, backend).unwrap();
+//         let vsock = Arc::new(Mutex::new(vsock));
+//         let mmio_transport = MmioTransport::new(mem.clone(), vsock.clone());
+
+//         (mmio_transport, mem, vsock)
+//     }
+
+//     #[test]
+//     fn test_block_over_mmiotransport_persistence() {
+//         let (mmio_transport, mem, block) = default_block();
+//         generic_mmiotransport_persistence_test(mmio_transport, mem, block);
+//     }
+
+//     #[test]
+//     fn test_net_over_mmiotransport_persistence() {
+//         let (mmio_transport, mem, net) = default_net();
+//         generic_mmiotransport_persistence_test(mmio_transport, mem, net);
+//     }
+
+//     #[test]
+//     fn test_vsock_over_mmiotransport_persistence() {
+//         let (mmio_transport, mem, vsock) = default_vsock();
+//         generic_mmiotransport_persistence_test(mmio_transport, mem, vsock);
+//     }
+// }

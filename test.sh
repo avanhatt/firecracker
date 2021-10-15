@@ -37,7 +37,7 @@ goto-instrument --drop-unused-functions  $HARNESS/c.out $HARNESS/d.out 2>&1 | te
 goto-instrument --dump-c $HARNESS/d.out $HARNESS/d.c
 
 # echo "Running CBMC"
-time cbmc $HARNESS/d.out --object-bits 11 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log
+time cbmc $HARNESS/d.out --bounds-check --pointer-check --pointer-primitive-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check --pointer-overflow-check --signed-overflow-check --undefined-shift-check --unsigned-overflow-check --object-bits 11 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log
 # time cbmc $HARNESS/e.out --object-bits 11 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log
 
 # time cbmc $HARNESS/d.out --bounds-check --pointer-check --pointer-primitive-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check --pointer-overflow-check --signed-overflow-check --undefined-shift-check --unsigned-overflow-check --object-bits 11 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log

@@ -125,6 +125,39 @@ impl RequestHeader {
     }
 }
 
+pub struct CustomError {}
+
+impl CustomError {
+    fn new() -> CustomError {
+        CustomError{}
+    }
+}
+
+impl Drop for CustomError {
+    fn drop(&mut self) {
+        assert!(true, "avhdroperror")
+    }
+}
+
+
+impl std::error::Error for CustomError {
+    fn description(&self) -> &str {
+        ""
+    }
+}
+
+impl std::fmt::Display for CustomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
+impl std::fmt::Debug for CustomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
 impl Request {
 
     pub fn parse(
@@ -132,64 +165,68 @@ impl Request {
         mem: &GuestMemoryMmap,
     ) -> result::Result<Request, Error> {
 
-        // The head contains the request type which MUST be readable.
-        if avail_desc.is_write_only() {
-            return Err(Error::UnexpectedWriteOnlyDescriptor);
-        }
+        return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError::new())));
 
-        let request_header = RequestHeader::read_from(mem, avail_desc.addr)?;
-        let mut req = Request {
-            request_type: RequestType::from(request_header.request_type),
-            sector: request_header.sector,
-            data_addr: GuestAddress(0),
-            data_len: 0,
-            status_addr: GuestAddress(0),
-        };
 
-        let data_desc;
-        let status_desc;
-        let desc = avail_desc
-            .next_descriptor()
-            .ok_or(Error::DescriptorChainTooShort)?;
+        // // The head contains the request type which MUST be readable.
+        // if avail_desc.is_write_only() {
+        //     // return Err(Error::UnexpectedWriteOnlyDescriptor);
+        //     return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError::new())));
+        // }
 
-        if !desc.has_next() {
-            status_desc = desc;
-            // Only flush requests are allowed to skip the data descriptor.
-            if req.request_type != RequestType::Flush {
-                return Err(Error::DescriptorChainTooShort);
-            }
-        } else {
-            data_desc = desc;
-            status_desc = data_desc
-                .next_descriptor()
-                .ok_or(Error::DescriptorChainTooShort)?;
+        // let request_header = RequestHeader::read_from(mem, avail_desc.addr)?;
+        // let mut req = Request {
+        //     request_type: RequestType::from(request_header.request_type),
+        //     sector: request_header.sector,
+        //     data_addr: GuestAddress(0),
+        //     data_len: 0,
+        //     status_addr: GuestAddress(0),
+        // };
 
-            if data_desc.is_write_only() && req.request_type == RequestType::Out {
-                return Err(Error::UnexpectedWriteOnlyDescriptor);
-            }
-            if !data_desc.is_write_only() && req.request_type == RequestType::In {
-                return Err(Error::UnexpectedReadOnlyDescriptor);
-            }
-            if !data_desc.is_write_only() && req.request_type == RequestType::GetDeviceID {
-                return Err(Error::UnexpectedReadOnlyDescriptor);
-            }
+        // let data_desc;
+        // let status_desc;
+        // let desc = avail_desc
+        //     .next_descriptor()
+        //     .ok_or(Error::DescriptorChainTooShort)?;
 
-            req.data_addr = data_desc.addr;
-            req.data_len = data_desc.len;
-        }
+        // if !desc.has_next() {
+        //     status_desc = desc;
+        //     // Only flush requests are allowed to skip the data descriptor.
+        //     if req.request_type != RequestType::Flush {
+        //         return Err(Error::DescriptorChainTooShort);
+        //     }
+        // } else {
+        //     data_desc = desc;
+        //     status_desc = data_desc
+        //         .next_descriptor()
+        //         .ok_or(Error::DescriptorChainTooShort)?;
 
-        // The status MUST always be writable.
-        if !status_desc.is_write_only() {
-            return Err(Error::UnexpectedReadOnlyDescriptor);
-        }
+        //     if data_desc.is_write_only() && req.request_type == RequestType::Out {
+        //         return Err(Error::UnexpectedWriteOnlyDescriptor);
+        //     }
+        //     if !data_desc.is_write_only() && req.request_type == RequestType::In {
+        //         return Err(Error::UnexpectedReadOnlyDescriptor);
+        //     }
+        //     if !data_desc.is_write_only() && req.request_type == RequestType::GetDeviceID {
+        //         return Err(Error::UnexpectedReadOnlyDescriptor);
+        //     }
 
-        if status_desc.len < 1 {
-            return Err(Error::DescriptorLengthTooSmall);
-        }
+        //     req.data_addr = data_desc.addr;
+        //     req.data_len = data_desc.len;
+        // }
 
-        req.status_addr = status_desc.addr;
+        // // The status MUST always be writable.
+        // if !status_desc.is_write_only() {
+        //     return Err(Error::UnexpectedReadOnlyDescriptor);
+        // }
 
-        Ok(req)
+        // if status_desc.len < 1 {
+        //     return Err(Error::DescriptorLengthTooSmall);
+        // }
+
+        // req.status_addr = status_desc.addr;
+
+        // Ok(req)
     }
 
     pub(crate) fn execute(
@@ -268,22 +305,25 @@ mod rmc_tests {
 
         let index: u16 = __nondet();
         let desc_table = GuestAddress(__nondet::<u64>());
-        match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
-            Some(desc) => {
-                let addr = desc_table.0 + (index as u64) * 16;
-                assert!(desc.index == index);
-                assert!(desc.index < queue_size);
-                if desc.has_next() {
-                    assert!(desc.next < queue_size);
-                }
-                match Request::parse(&desc, &mem) {
-                    Ok(req) => {
-
+        {
+            match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
+                Some(desc) => {
+                    __VERIFIER_assume((index as u64) * 16 < u64::MAX - desc_table.0);
+                    let addr = desc_table.0 + (index as u64) * 16;
+                    assert!(desc.index == index);
+                    assert!(desc.index < queue_size);
+                    if desc.has_next() {
+                        assert!(desc.next < queue_size);
                     }
-                    Err(err) => {}
-                }
-            },
-            None => {},
+                    match Request::parse(&desc, &mem) {
+                        Ok(req) => {
+                        }
+                        Err(err) => {
+                        }
+                    }
+                },
+                None => {},
+            }
         }
     }
 }
