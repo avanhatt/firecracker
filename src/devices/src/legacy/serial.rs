@@ -293,18 +293,15 @@ impl<W: Write + Send + 'static> BusDevice
         if data.len() != 1 {
             return;
         }
-        // data[0] = self.serial.read(offset as u8);
+        data[0] = self.serial.read(offset as u8);
     }
 
     fn write(&mut self, offset: u64, data: &[u8]) {
         if data.len() != 1 {
             return;
         }
-        let _ = self.serial.write(offset as u8, data[0]);
-        // if let Err(e) = self.serial.write(offset as u8, data[0]) {
-        //     // Counter incremented for any handle_write() error.
-        //     error!("Failed the write to serial: {:?}", e);
-        // }
+        let result = self.serial.write(offset as u8, data[0]);
+        assert!(result.is_ok());
     }
 }
 
@@ -340,6 +337,9 @@ mod tests {
 
     #[no_mangle]
     fn serial_harness() {
+        // This test requires the Serial device be in loopback mode, i.e., 
+        // setting is_in_loop_mode to return true in 
+        // https://github.com/rust-vmm/vm-superio/blob/main/crates/vm-superio/src/serial.rs
         let serial_out = SharedBuffer::new();
         let intr_evt = EventFdTrigger::new(EventFd{}); 
 
@@ -350,31 +350,12 @@ mod tests {
             ),
             input: None,
         };
-
-
         let bytes: [u8; 1] = __nondet();
         <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
 
-
-        // let to_read : u64 = __nondet();
-        // __VERIFIER_assume(to_read != 1);
-        // let bytes: [u8; 0] = [0, to_read];
-        // <dyn BusDevice>::read(&mut serial, 0u64, &mut v);
-
-
-
-        // let bytes: [u8; 0] = [];
-        // <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
-
-        // serial.serial.raw_input(&[42]).unwrap();
-        // let mut v = [0x00; 1];
-        // <dyn BusDevice>::read(&mut serial, 0u64, &mut v);
-        // assert!(v[0] == 42);
-
-        // let bytes: [u8; 0] = [];
-
-        // <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
-        // assert!(*serial_out.buf.as_slice() == bytes);
+        let mut read = [0x00; 1];
+        <dyn BusDevice>::read(&mut serial, 0u64, &mut read);
+        assert!(bytes[0] == read[0]);
     }
 
     // #[test]
