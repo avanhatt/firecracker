@@ -10,6 +10,7 @@ use crate::legacy::EventFdTrigger;
 
 #[cfg(rmc)] 
 include!("./mock_event_fd.rs");
+include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
 
 use crate::BusDevice;
 use logger::SerialDeviceMetrics;
@@ -292,17 +293,18 @@ impl<W: Write + Send + 'static> BusDevice
         if data.len() != 1 {
             return;
         }
-        data[0] = self.serial.read(offset as u8);
+        // data[0] = self.serial.read(offset as u8);
     }
 
     fn write(&mut self, offset: u64, data: &[u8]) {
         if data.len() != 1 {
             return;
         }
-        if let Err(e) = self.serial.write(offset as u8, data[0]) {
-            // Counter incremented for any handle_write() error.
-            error!("Failed the write to serial: {:?}", e);
-        }
+        let _ = self.serial.write(offset as u8, data[0]);
+        // if let Err(e) = self.serial.write(offset as u8, data[0]) {
+        //     // Counter incremented for any handle_write() error.
+        //     error!("Failed the write to serial: {:?}", e);
+        // }
     }
 }
 
@@ -349,11 +351,30 @@ mod tests {
             input: None,
         };
 
-        <dyn BusDevice>::write(&mut serial, 0u64, &[b'a']);
-        assert_eq!(
-            serial_out.buf.as_slice(),
-            &[b'a']
-        );
+
+        let bytes: [u8; 1] = __nondet();
+        <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
+
+
+        // let to_read : u64 = __nondet();
+        // __VERIFIER_assume(to_read != 1);
+        // let bytes: [u8; 0] = [0, to_read];
+        // <dyn BusDevice>::read(&mut serial, 0u64, &mut v);
+
+
+
+        // let bytes: [u8; 0] = [];
+        // <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
+
+        // serial.serial.raw_input(&[42]).unwrap();
+        // let mut v = [0x00; 1];
+        // <dyn BusDevice>::read(&mut serial, 0u64, &mut v);
+        // assert!(v[0] == 42);
+
+        // let bytes: [u8; 0] = [];
+
+        // <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
+        // assert!(*serial_out.buf.as_slice() == bytes);
     }
 
     // #[test]

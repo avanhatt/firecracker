@@ -70,7 +70,7 @@ impl EventFdTrigger {
         unimplemented!()
     }
     fn new(evt: EventFd) -> Self {
-        unimplemented!()
+        Self(evt)
     }
 
     pub fn get_event(&self) -> EventFd {
