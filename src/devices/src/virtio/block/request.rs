@@ -164,69 +164,64 @@ impl Request {
         avail_desc: &DescriptorChain,
         mem: &GuestMemoryMmap,
     ) -> result::Result<Request, Error> {
+        // The head contains the request type which MUST be readable.
+        if avail_desc.is_write_only() {
+            return Err(Error::UnexpectedWriteOnlyDescriptor);
+        }
 
-        return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError::new())));
+        let request_header = RequestHeader::read_from(mem, avail_desc.addr)?;
+        let mut req = Request {
+            request_type: RequestType::from(request_header.request_type),
+            sector: request_header.sector,
+            data_addr: GuestAddress(0),
+            data_len: 0,
+            status_addr: GuestAddress(0),
+        };
 
+        let data_desc;
+        let status_desc;
+        let desc = avail_desc
+            .next_descriptor()
+            .ok_or(Error::DescriptorChainTooShort)?;
 
-        // // The head contains the request type which MUST be readable.
-        // if avail_desc.is_write_only() {
-        //     // return Err(Error::UnexpectedWriteOnlyDescriptor);
-        //     return Err(Error::GetFileMetadata(std::io::Error::new(std::io::ErrorKind::Other, CustomError::new())));
-        // }
+        if !desc.has_next() {
+            status_desc = desc;
+            // Only flush requests are allowed to skip the data descriptor.
+            if req.request_type != RequestType::Flush {
+                return Err(Error::DescriptorChainTooShort);
+            }
+        } else {
+            data_desc = desc;
+            status_desc = data_desc
+                .next_descriptor()
+                .ok_or(Error::DescriptorChainTooShort)?;
 
-        // let request_header = RequestHeader::read_from(mem, avail_desc.addr)?;
-        // let mut req = Request {
-        //     request_type: RequestType::from(request_header.request_type),
-        //     sector: request_header.sector,
-        //     data_addr: GuestAddress(0),
-        //     data_len: 0,
-        //     status_addr: GuestAddress(0),
-        // };
+            if data_desc.is_write_only() && req.request_type == RequestType::Out {
+                return Err(Error::UnexpectedWriteOnlyDescriptor);
+            }
+            if !data_desc.is_write_only() && req.request_type == RequestType::In {
+                return Err(Error::UnexpectedReadOnlyDescriptor);
+            }
+            if !data_desc.is_write_only() && req.request_type == RequestType::GetDeviceID {
+                return Err(Error::UnexpectedReadOnlyDescriptor);
+            }
 
-        // let data_desc;
-        // let status_desc;
-        // let desc = avail_desc
-        //     .next_descriptor()
-        //     .ok_or(Error::DescriptorChainTooShort)?;
+            req.data_addr = data_desc.addr;
+            req.data_len = data_desc.len;
+        }
 
-        // if !desc.has_next() {
-        //     status_desc = desc;
-        //     // Only flush requests are allowed to skip the data descriptor.
-        //     if req.request_type != RequestType::Flush {
-        //         return Err(Error::DescriptorChainTooShort);
-        //     }
-        // } else {
-        //     data_desc = desc;
-        //     status_desc = data_desc
-        //         .next_descriptor()
-        //         .ok_or(Error::DescriptorChainTooShort)?;
+        // The status MUST always be writable.
+        if !status_desc.is_write_only() {
+            return Err(Error::UnexpectedReadOnlyDescriptor);
+        }
 
-        //     if data_desc.is_write_only() && req.request_type == RequestType::Out {
-        //         return Err(Error::UnexpectedWriteOnlyDescriptor);
-        //     }
-        //     if !data_desc.is_write_only() && req.request_type == RequestType::In {
-        //         return Err(Error::UnexpectedReadOnlyDescriptor);
-        //     }
-        //     if !data_desc.is_write_only() && req.request_type == RequestType::GetDeviceID {
-        //         return Err(Error::UnexpectedReadOnlyDescriptor);
-        //     }
+        if status_desc.len < 1 {
+            return Err(Error::DescriptorLengthTooSmall);
+        }
 
-        //     req.data_addr = data_desc.addr;
-        //     req.data_len = data_desc.len;
-        // }
+        req.status_addr = status_desc.addr;
 
-        // // The status MUST always be writable.
-        // if !status_desc.is_write_only() {
-        //     return Err(Error::UnexpectedReadOnlyDescriptor);
-        // }
-
-        // if status_desc.len < 1 {
-        //     return Err(Error::DescriptorLengthTooSmall);
-        // }
-
-        // req.status_addr = status_desc.addr;
-
-        // Ok(req)
+        Ok(req)
     }
 
     pub(crate) fn execute(
@@ -316,10 +311,8 @@ mod rmc_tests {
                         assert!(desc.next < queue_size);
                     }
                     match Request::parse(&desc, &mem) {
-                        Ok(req) => {
-                        }
-                        Err(err) => {
-                        }
+                        Ok(req) => {}
+                        Err(err) => {}
                     }
                 },
                 None => {},
