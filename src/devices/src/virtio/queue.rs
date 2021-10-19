@@ -17,6 +17,9 @@ use vm_memory::{
 pub(super) const VIRTQ_DESC_F_NEXT: u16 = 0x1;
 pub(super) const VIRTQ_DESC_F_WRITE: u16 = 0x2;
 
+#[cfg(rmc)]
+include!("../../../../../rmc/src/test/rmc-prelude.rs");
+
 // GuestMemoryMmap::read_obj_from_addr() will be used to fetch the descriptor,
 // which has an explicit constraint that the entire descriptor doesn't
 // cross the page boundary. Otherwise the descriptor may be splitted into
@@ -87,6 +90,7 @@ pub struct DescriptorChain<'a> {
 }
 
 impl<'a> DescriptorChain<'a> {
+    #[cfg(not(rmc))]
     fn checked_new(
         mem: &GuestMemoryMmap,
         desc_table: GuestAddress,
@@ -109,6 +113,44 @@ impl<'a> DescriptorChain<'a> {
                 return None;
             }
         };
+        let chain = DescriptorChain {
+            mem,
+            desc_table,
+            queue_size,
+            ttl: queue_size,
+            index,
+            addr: GuestAddress(desc.addr),
+            len: desc.len,
+            flags: desc.flags,
+            next: desc.next,
+        };
+
+        if chain.is_valid() {
+            Some(chain)
+        } else {
+            None
+        }
+    }
+
+    #[cfg(rmc)]
+    pub fn checked_new(
+        mem: &GuestMemoryMmap,
+        desc_table: GuestAddress,
+        queue_size: u16,
+        index: u16,
+    ) -> Option<DescriptorChain> {
+        if index >= queue_size {
+            return None;
+        }
+
+        // overapproximate checked_offset
+        if __nondet() {
+            return None;
+        }
+
+        // mem can access 16 bytes from desc_table[index]
+        // model as arbitrary bytes
+        let desc : Descriptor = __nondet();
         let chain = DescriptorChain {
             mem,
             desc_table,

@@ -17,7 +17,7 @@ ls *.json | parallel -j 72 symtab2gb {} --out {.}.out &> symtab2gb.log
 RESTRICTIONS=restrictions.json
 rmc-link-restrictions . &> $RESTRICTIONS
 
-HARNESS=serial_harness
+HARNESS=parse_harness
 mkdir $HARNESS
 
 # Empty C file to pull in CBMC preprocessing
@@ -37,4 +37,8 @@ goto-instrument --drop-unused-functions  $HARNESS/c.out $HARNESS/d.out 2>&1 | te
 goto-instrument --dump-c $HARNESS/d.out $HARNESS/d.c
 
 echo "Running CBMC"
-time cbmc $HARNESS/d.out --trace --bounds-check --pointer-check --pointer-primitive-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check --pointer-overflow-check --signed-overflow-check --undefined-shift-check --unsigned-overflow-check --object-bits 13 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log
+time cbmc $HARNESS/d.out --trace --bounds-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check--signed-overflow-check --undefined-shift-check --unsigned-overflow-check --object-bits 13 --unwinding-assertions --unwind 2 2>&1 | tee $HARNESS/cbmc.log
+# disabled: --pointer-check --pointer-primitive-check  --pointer-overflow-check 
+
+# fast:
+# time cbmc $HARNESS/d.out --unwind 2 2>&1 | tee $HARNESS/cbmc.log
