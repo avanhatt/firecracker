@@ -27,12 +27,10 @@ goto-cc --function $HARNESS *.out empty.c -o $HARNESS/a.out
 # Dump C after each goto-instrument transformation
 goto-instrument --function-pointer-restrictions-file $RESTRICTIONS $HARNESS/a.out $HARNESS/b.out
 goto-instrument --remove-function-pointers $HARNESS/b.out $HARNESS/c.out
-goto-instrument --drop-unused-functions  $HARNESS/c.out $HARNESS/d.out 
+goto-instrument --drop-unused-functions --reachability-slice $HARNESS/c.out $HARNESS/d.out 
 goto-instrument --dump-c $HARNESS/d.out $HARNESS/d.c
 
 echo "Running CBMC"
-# time cbmc $HARNESS/d.out --trace --bounds-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check --signed-overflow-check --undefined-shift-check --unsigned-overflow-check --object-bits 13 --unwinding-assertions --unwind 2 2>&1 
-# disabled: --pointer-check --pointer-primitive-check  --pointer-overflow-check 
 
 # fast:
-time cbmc $HARNESS/d.out --object-bits 13 --unwinding-assertions  --unwind 2 
+time cbmc $HARNESS/d.out --object-bits 13 --unwinding-assertions --unwind 2 

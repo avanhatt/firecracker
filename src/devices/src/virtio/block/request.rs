@@ -398,18 +398,7 @@ impl Request {
 #[cfg(rmc)]
 mod rmc_tests {
     use super::*;
-    use vm_memory::{test_utils::create_anon_guest_memory, Address, GuestAddress, GuestMemory};
-
-    pub struct GuestMemoryMmap<B = ()> {
-        regions: Vec<Arc<GuestRegionMmap<B>>>,
-    }
-
-    impl<B: ()> GuestMemoryMmap<B> {
-        /// Creates an empty `GuestMemoryMmap` instance.
-        pub fn new() -> Self {
-            Self::default()
-        }
-    }
+    use vm_memory::{test_utils::create_anon_guest_memory, Address, GuestAddress, GuestMemory, GuestMemoryMmap, GuestRegionMmap};
 
     const NUM_DISK_SECTORS: u64 = 1024;
 
@@ -419,7 +408,11 @@ mod rmc_tests {
 
     #[no_mangle]
     fn parse_harness() {
-        let mem: GuestMemoryMmap =  __nondet();
+        let region : GuestRegionMmap = __nondet();
+        let mem = GuestMemoryMmap::from_regions(vec![region]);
+        __VERIFIER_assume(mem.is_ok());
+        let mem = mem.unwrap();
+
         let queue_size: u16 = __nondet();
         __VERIFIER_assume(is_nonzero_pow2(queue_size));
 

@@ -309,7 +309,6 @@ impl<W: Write + Send + 'static> BusDevice
 mod tests {
     use super::*;
     use std::io;
-    use std::sync::{Arc, Mutex};
 
     #[derive(Clone)]
     struct SharedBuffer {
@@ -334,7 +333,7 @@ mod tests {
     }
 
     #[no_mangle]
-    fn serial_harness() {
+    fn serial_offset_harness() {
         // This test requires the Serial device be in loopback mode, i.e., 
         // setting is_in_loop_mode to return true in 
         // https://github.com/rust-vmm/vm-superio/blob/main/crates/vm-superio/src/serial.rs
@@ -348,12 +347,22 @@ mod tests {
             ),
             input: None,
         };
+
+        // Symbolic byte to be written
         let bytes: [u8; 1] = __nondet();
-        <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
+
+        // Symbolic, potentially different offsets
+        let write_offset: u8 = __nondet();
+        let read_offset: u8 = __nondet();
+
+        <dyn BusDevice>::write(&mut serial, write_offset as u64, &bytes);
 
         let mut read = [0x00; 1];
-        <dyn BusDevice>::read(&mut serial, 0u64, &mut read);
-        assert!(bytes[0] == read[0]);
+        <dyn BusDevice>::read(&mut serial, read_offset as u64, &mut read);
+
+        if write_offset == 0 && read_offset == 0 {
+            assert!(bytes[0] == read[0]);
+        } 
     }
 }
 
@@ -367,7 +376,7 @@ mod tests {
     #[test]
     fn test_serial_bus_write() {
         let serial_out = SharedBuffer::new();
-        let intr_evt = EventFdTrigger::new(EventFd::new(libc::EFD_NONBLOCK).unwrap()); // TODO fake
+        let intr_evt = EventFdTrigger::new(EventFd::new(libc::EFD_NONBLOCK).unwrap());
 
         let metrics = Arc::new(SerialDeviceMetrics::default());
         let mut serial = SerialDevice {
