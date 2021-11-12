@@ -14,12 +14,13 @@ FLAGS+=" -Z restrict_vtable_fn_ptrs --cfg=rmc "
 RUST_BACKTRACE=1 RUSTFLAGS=$FLAGS RUSTC=$(rmc-rustc --rmc-path) cargo build --target x86_64-unknown-linux-gnu -j 16
 cd ../../../..
 cd build/cargo_target/x86_64-unknown-linux-gnu/debug/deps/
-ls *.json | parallel -j 72 symtab2gb {} --out {.}.out &> symtab2gb.log
+ls *.symtab.json | parallel -j 72 symtab2gb {} --out {.}.out &> symtab2gb.log
 
 # New: combine restriction files from crate + dependencies into one
 # cargo build --release --manifest-path ~/rmc/src/tools/rmc-link-restrictions/Cargo.toml
 RESTRICTIONS=restrictions-linked.json
-~/rmc/target/release/rmc-link-restrictions . $RESTRICTIONS
+FOLDER=$(pwd)
+~/rmc/target/release/rmc-link-restrictions $FOLDER $RESTRICTIONS
 
 HARNESS=parse_harness
 mkdir $HARNESS
@@ -35,7 +36,7 @@ goto-cc --function $HARNESS *.out empty.c -o $HARNESS/a.out
 goto-instrument --function-pointer-restrictions-file $RESTRICTIONS $HARNESS/a.out $HARNESS/b.out
 
 goto-instrument --remove-function-pointers $HARNESS/b.out $HARNESS/c.out
-goto-instrument --drop-unused-functions --reachability-slice $HARNESS/c.out $HARNESS/d.out 
+goto-instrument --drop-unused-functions $HARNESS/c.out $HARNESS/d.out 
 goto-instrument --dump-c $HARNESS/d.out $HARNESS/d.c
 
 echo "Running CBMC"
