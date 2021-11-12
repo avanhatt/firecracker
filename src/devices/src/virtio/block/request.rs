@@ -17,9 +17,6 @@ use super::super::DescriptorChain;
 use super::device::DiskProperties;
 use super::{Error, SECTOR_SHIFT, SECTOR_SIZE};
 
-#[cfg(rmc)]
-include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
-
 #[derive(Debug)]
 pub enum ExecuteError {
     BadRequest(Error),
@@ -116,8 +113,8 @@ impl RequestHeader {
 
     #[cfg(rmc)]
     fn read_from(memory: &GuestMemoryMmap, addr: GuestAddress) -> result::Result<Self, Error> {
-        if __nondet() {
-            let result : RequestHeader = __nondet();
+        if rmc::nondet() {
+            let result : RequestHeader = rmc::nondet();
             return Ok(result);
         } else {
             return Err(Error::DescriptorChainTooShort); //< should be GuestMemory error
@@ -295,15 +292,15 @@ mod rmc_tests {
     #[no_mangle]
     fn parse_harness() {
         let mem = GuestMemoryMmap::new();
-        let queue_size: u16 = __nondet();
-        __VERIFIER_assume(is_nonzero_pow2(queue_size));
+        let queue_size: u16 = rmc::nondet();
+        rmc::assume(is_nonzero_pow2(queue_size));
 
-        let index: u16 = __nondet();
-        let desc_table = GuestAddress(__nondet::<u64>());
+        let index: u16 = rmc::nondet();
+        let desc_table = GuestAddress(rmc::nondet::<u64>());
         {
             match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
                 Some(desc) => {
-                    __VERIFIER_assume((index as u64) * 16 < u64::MAX - desc_table.0);
+                    rmc::assume((index as u64) * 16 < u64::MAX - desc_table.0);
                     let addr = desc_table.0 + (index as u64) * 16;
                     assert!(desc.index == index);
                     assert!(desc.index < queue_size);

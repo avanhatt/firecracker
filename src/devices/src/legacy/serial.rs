@@ -46,8 +46,6 @@ impl AsRawFd for EventFd {
 
 use crate::bus::BusDevice;
 
-include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
-
 const FIFO_SIZE: usize = 64;
 
 const DATA: u8 = 0;
@@ -608,33 +606,33 @@ mod tests {
     // input: Box<dyn ReadableFd + Send>,
     // out: Box<dyn io::Write + Send>,
 
-    #[no_mangle]
-    fn serial_recv_harness() {
-        let event_fd1 = EventFd{};
-        let event_fd2 = EventFd{};
+    // #[no_mangle]
+    // fn serial_recv_harness() {
+    //     let event_fd1 = EventFd{};
+    //     let event_fd2 = EventFd{};
 
-        let mut serial_in_out = SharedBuffer::new();
-        serial_in_out.set_loopback(true);
+    //     let mut serial_in_out = SharedBuffer::new();
+    //     serial_in_out.set_loopback(true);
 
-        let mut serial = Serial::new_in_out(
-            event_fd1,
-            Box::new(serial_in_out.clone()) as Box<dyn ReadableFd + Send>,
-            Box::new(serial_in_out.clone()) as Box<dyn io::Write + Send>,
-            Some(event_fd2),
-        );
+    //     let mut serial = Serial::new_in_out(
+    //         event_fd1,
+    //         Box::new(serial_in_out.clone()) as Box<dyn ReadableFd + Send>,
+    //         Box::new(serial_in_out.clone()) as Box<dyn io::Write + Send>,
+    //         Some(event_fd2),
+    //     );
 
-        // Send more than buffer capacity bytes.
-        // let size: usize = __nondet();
-        let size: usize = 1;
+    //     // Send more than buffer capacity bytes.
+    //     // let size: usize = rmc::nondet();
+    //     let size: usize = 1;
 
-        // __VERIFIER_assume(size < 2);
-        let stdin_bytes = vec![0u8; size + 1];
+    //     // rmc::assume(size < 2);
+    //     let stdin_bytes = vec![0u8; size + 1];
 
-        let write_res = serial_in_out.write(&stdin_bytes);
-        assert!(write_res.is_ok());
-        let mut recv_res = serial.recv_bytes();
-        assert!(recv_res.is_ok());
-    }
+    //     let write_res = serial_in_out.write(&stdin_bytes);
+    //     assert!(write_res.is_ok());
+    //     let mut recv_res = serial.recv_bytes();
+    //     assert!(recv_res.is_ok());
+    // }
 
 
     // #[test]

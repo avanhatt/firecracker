@@ -252,15 +252,11 @@ mod rmc_tests {
        return v;
    }
 
-   fn __nondet<T>() -> T {
-       unimplemented!()
-   }
-
    #[no_mangle]
    fn balloon_proof_harness() {
        let mut input = vec![0; 2];
        for i in 0..input.len() {
-           input[i] = __nondet();
+           input[i] = rmc::nondet();
            if input[i] == u32::MAX {
                return;
            }
@@ -271,7 +267,7 @@ mod rmc_tests {
        }
        assert!(output.len() <= input.len());
        let expanded_output = expand(output);
-       let i: usize = __nondet();
+       let i: usize = rmc::nondet();
        if i < expanded_output.len() {
            assert!(expanded_output[i] == input[i]);
        }

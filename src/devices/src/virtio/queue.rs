@@ -14,9 +14,6 @@ use vm_memory::{
     Address, ByteValued, Bytes, GuestAddress, GuestMemory, GuestMemoryError, GuestMemoryMmap,
 };
 
-#[cfg(rmc)]
-include!("/home/ubuntu/rmc/src/test/rmc-prelude.rs");
-
 pub(super) const VIRTQ_DESC_F_NEXT: u16 = 0x1;
 pub(super) const VIRTQ_DESC_F_WRITE: u16 = 0x2;
 
@@ -104,13 +101,13 @@ impl<'a> DescriptorChain<'a> {
         }
 
         // overapproximate checked_offset
-        if __nondet() {
+        if rmc::nondet() {
             return None;
         }
 
         // mem can access 16 bytes from desc_table[index]
         // model as arbitrary bytes
-        let desc : Descriptor = __nondet();
+        let desc : Descriptor = rmc::nondet();
         let chain = DescriptorChain {
             mem,
             desc_table,
