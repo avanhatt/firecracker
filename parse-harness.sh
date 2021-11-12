@@ -14,6 +14,7 @@ FLAGS+=" -Z restrict_vtable_fn_ptrs --cfg=rmc "
 RUST_BACKTRACE=1 RUSTFLAGS=$FLAGS RUSTC=$(rmc-rustc --rmc-path) cargo build --target x86_64-unknown-linux-gnu -j 16
 cd ../../../..
 cd build/cargo_target/x86_64-unknown-linux-gnu/debug/deps/
+ls *.json | parallel -j 72 symtab2gb {} --out {.}.out &> symtab2gb.log
 
 # New: combine restriction files from crate + dependencies into one
 # cargo build --release --manifest-path ~/rmc/src/tools/rmc-link-restrictions/Cargo.toml
