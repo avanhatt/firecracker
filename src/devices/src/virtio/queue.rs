@@ -17,9 +17,6 @@ use vm_memory::{
 pub(super) const VIRTQ_DESC_F_NEXT: u16 = 0x1;
 pub(super) const VIRTQ_DESC_F_WRITE: u16 = 0x2;
 
-#[cfg(rmc)]
-include!("../../../../../rmc/src/test/rmc-prelude.rs");
-
 // GuestMemoryMmap::read_obj_from_addr() will be used to fetch the descriptor,
 // which has an explicit constraint that the entire descriptor doesn't
 // cross the page boundary. Otherwise the descriptor may be splitted into
@@ -144,13 +141,13 @@ impl<'a> DescriptorChain<'a> {
         }
 
         // overapproximate checked_offset
-        if __nondet() {
+        if rmc::nondet() {
             return None;
         }
 
         // mem can access 16 bytes from desc_table[index]
         // model as arbitrary bytes
-        let desc : Descriptor = __nondet();
+        let desc : Descriptor = rmc::nondet();
         let chain = DescriptorChain {
             mem,
             desc_table,

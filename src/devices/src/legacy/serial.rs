@@ -10,7 +10,6 @@ use crate::legacy::EventFdTrigger;
 
 #[cfg(rmc)] 
 include!("./mock_event_fd.rs");
-include!("../../../../../rmc/src/test/rmc-prelude.rs");
 
 use crate::BusDevice;
 use logger::SerialDeviceMetrics;
@@ -349,11 +348,11 @@ mod tests {
         };
 
         // Symbolic byte to be written
-        let bytes: [u8; 1] = __nondet();
+        let bytes: [u8; 1] = rmc::nondet();
 
         // Symbolic, potentially different offsets
-        let write_offset: u8 = __nondet();
-        let read_offset: u8 = __nondet();
+        let write_offset: u8 = rmc::nondet();
+        let read_offset: u8 = rmc::nondet();
 
         <dyn BusDevice>::write(&mut serial, write_offset as u64, &bytes);
 
