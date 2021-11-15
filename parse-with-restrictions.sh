@@ -20,7 +20,7 @@ touch empty.c
 goto-cc --function $HARNESS *.out empty.c -o $WITH_RESTRICTIONS/a.out
 
 # With function pointer restrictions
-goto-instrument --function-pointer-restrictions-file $RESTRICTIONS $WITH_RESTRICTIONS/a.out $WITH_RESTRICTIONS/b.out
+goto-instrument --function-pointer-restrictions-file $WITH_RESTRICTIONS/$RESTRICTIONS $WITH_RESTRICTIONS/a.out $WITH_RESTRICTIONS/b.out
 
 goto-instrument --remove-function-pointers $WITH_RESTRICTIONS/b.out $WITH_RESTRICTIONS/c.out
 goto-instrument --drop-unused-functions --reachability-slice $WITH_RESTRICTIONS/c.out $WITH_RESTRICTIONS/d.out 
