@@ -334,7 +334,7 @@ dependencies = [
  "versionize_derive",
  "virtio_gen",
  "vm-memory 0.1.0",
- "vm-superio",
+ "vm-superio 0.4.0",
 ]
 
 [[package]]
@@ -531,7 +531,7 @@ dependencies = [
  "serde",
  "serde_json",
  "utils",
- "vm-superio",
+ "vm-superio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1045,6 +1045,10 @@ dependencies = [
 [[package]]
 name = "vm-superio"
 version = "0.4.0"
+
+[[package]]
+name = "vm-superio"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3be26a7083513b8302a0053a93f03592ec8875803ff312e0bd3a373e1bee4cfd"
 
@@ -1074,7 +1078,7 @@ dependencies = [
  "versionize_derive",
  "virtio_gen",
  "vm-memory 0.1.0",
- "vm-superio",
+ "vm-superio 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

@@ -5,22 +5,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the THIRD-PARTY file.
 
+#[cfg(not(kani))]
 use crate::legacy::EventFdTrigger;
+
+#[cfg(kani)] 
+include!("./mock_event_fd.rs");
+
 use crate::BusDevice;
 use logger::SerialDeviceMetrics;
-use std::io;
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
-use std::result;
 use std::sync::Arc;
 use vm_superio::serial::Error as SerialError;
 use vm_superio::serial::SerialEvents;
+use vm_superio::serial::NoEvents;
 use vm_superio::Serial;
-use vm_superio::Trigger;
 
 use event_manager::{EventOps, Events, MutEventSubscriber};
 use logger::{error, warn, IncMetric};
-use std::os::unix::io::RawFd;
 use utils::epoll::EventSet;
 
 // Cannot use multiple types as bounds for a trait object, so we define our own trait
@@ -161,8 +162,13 @@ impl<W: Write> SerialWrapper<EventFdTrigger, SerialEventsWrapper, W> {
     }
 }
 
+#[cfg(not(kani))]
 pub type SerialDevice =
     SerialWrapper<EventFdTrigger, SerialEventsWrapper, Box<dyn io::Write + Send>>;
+
+#[cfg(kani)]
+pub type SerialDevice =
+    SerialWrapper<EventFdTrigger, NoEvents, Box<dyn io::Write + Send>>;
 
 impl<W: std::io::Write> MutEventSubscriber
     for SerialWrapper<EventFdTrigger, SerialEventsWrapper, W>
@@ -273,6 +279,79 @@ impl<W: Write + Send + 'static> BusDevice
         }
     }
 }
+
+#[cfg(kani)]
+impl<W: Write + Send + 'static> BusDevice
+    for SerialWrapper<EventFdTrigger, NoEvents, W>
+{
+    fn read(&mut self, offset: u64, data: &mut [u8]) {
+        if data.len() != 1 {
+            return;
+        }
+        data[0] = self.serial.read(offset as u8);
+    }
+
+    fn write(&mut self, offset: u64, data: &[u8]) {
+        if data.len() != 1 {
+            return;
+        }
+        let result = self.serial.write(offset as u8, data[0]);
+        assert!(result.is_ok());
+    }
+}
+
+#[cfg(kani)]
+mod tests {
+    use super::*;
+    use std::io;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone)]
+    struct SharedBuffer {
+        buf: Vec<u8>,
+    }
+
+    impl SharedBuffer {
+        fn new() -> SharedBuffer {
+            SharedBuffer {
+                buf: Vec::new(),
+            }
+        }
+    }
+
+    impl io::Write for SharedBuffer {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.buf.write(buf)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.buf.flush()
+        }
+    }
+
+    #[no_mangle]
+    fn serial_harness() {
+        // This test requires the Serial device be in loopback mode, i.e., 
+        // setting is_in_loop_mode to return true in 
+        // https://github.com/rust-vmm/vm-superio/blob/main/crates/vm-superio/src/serial.rs
+        let serial_out = SharedBuffer::new();
+        let intr_evt = EventFdTrigger::new(EventFd{}); 
+
+        let mut serial = SerialDevice {
+        serial: Serial::new(
+                intr_evt,
+                Box::new(serial_out.clone()),
+            ),
+            input: None,
+        };
+        let bytes: [u8; 1] = kani::any();
+        <dyn BusDevice>::write(&mut serial, 0u64, &bytes);
+
+        let mut read = [0x00; 1];
+        <dyn BusDevice>::read(&mut serial, 0u64, &mut read);
+        assert!(bytes[0] == read[0]);
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
