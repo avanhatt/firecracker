@@ -87,6 +87,47 @@ pub struct DescriptorChain<'a> {
 }
 
 impl<'a> DescriptorChain<'a> {
+    #[cfg(kani)]
+    pub fn checked_new(
+        mem: &GuestMemoryMmap,
+        desc_table: GuestAddress,
+        queue_size: u16,
+        index: u16,
+    ) -> Option<DescriptorChain> {
+        if index >= queue_size {
+            return None;
+        }
+
+        // overapproximate checked_offset
+        if kani::any() {
+            return None;
+        }
+
+        // mem can access 16 bytes from desc_table[index]
+        // model as arbitrary bytes
+        unsafe {
+            let desc : Descriptor = kani::any_raw();
+            let chain = DescriptorChain {
+                mem,
+                desc_table,
+                queue_size,
+                ttl: queue_size,
+                index,
+                addr: GuestAddress(desc.addr),
+                len: desc.len,
+                flags: desc.flags,
+                next: desc.next,
+            };
+
+            if chain.is_valid() {
+                Some(chain)
+            } else {
+                None
+            }
+        }
+    }
+
+    #[cfg(not(kani))]
     fn checked_new(
         mem: &GuestMemoryMmap,
         desc_table: GuestAddress,
