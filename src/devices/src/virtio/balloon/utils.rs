@@ -239,37 +239,3 @@ mod tests {
         );
     }
 }
-
-#[cfg(rmc)]
-mod rmc_tests {
-   use super::*;
-
-   fn expand(ranges: Vec<(u32, u32)>) -> Vec<u32> {
-       let mut v: Vec<u32> = Vec::new();
-       for (start, len) in ranges {
-           v.extend(start..=(start + len - 1));
-       }
-       return v;
-   }
-
-   #[no_mangle]
-   fn balloon_proof_harness() {
-       let mut input = vec![0; 2];
-       for i in 0..input.len() {
-           input[i] = rmc::nondet();
-           if input[i] == u32::MAX {
-               return;
-           }
-       }
-       let output = compact_page_frame_numbers(&mut input);
-       for (_start, len) in output.iter() {
-           assert!(1 <= *len);
-       }
-       assert!(output.len() <= input.len());
-       let expanded_output = expand(output);
-       let i: usize = rmc::nondet();
-       if i < expanded_output.len() {
-           assert!(expanded_output[i] == input[i]);
-       }
-   }
-}

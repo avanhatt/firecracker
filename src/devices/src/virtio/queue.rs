@@ -86,10 +86,8 @@ pub struct DescriptorChain<'a> {
     pub next: u16,
 }
 
-//pub static mut TRACKED_DESCRIPTORS : &[Descriptor];
-
 impl<'a> DescriptorChain<'a> {
-    #[cfg(rmc)]
+    #[cfg(kani)]
     pub fn checked_new(
         mem: &GuestMemoryMmap,
         desc_table: GuestAddress,
@@ -101,33 +99,35 @@ impl<'a> DescriptorChain<'a> {
         }
 
         // overapproximate checked_offset
-        if rmc::nondet() {
+        if kani::any() {
             return None;
         }
 
         // mem can access 16 bytes from desc_table[index]
         // model as arbitrary bytes
-        let desc : Descriptor = rmc::nondet();
-        let chain = DescriptorChain {
-            mem,
-            desc_table,
-            queue_size,
-            ttl: queue_size,
-            index,
-            addr: GuestAddress(desc.addr),
-            len: desc.len,
-            flags: desc.flags,
-            next: desc.next,
-        };
+        unsafe {
+            let desc : Descriptor = kani::any_raw();
+            let chain = DescriptorChain {
+                mem,
+                desc_table,
+                queue_size,
+                ttl: queue_size,
+                index,
+                addr: GuestAddress(desc.addr),
+                len: desc.len,
+                flags: desc.flags,
+                next: desc.next,
+            };
 
-        if chain.is_valid() {
-            Some(chain)
-        } else {
-            None
+            if chain.is_valid() {
+                Some(chain)
+            } else {
+                None
+            }
         }
     }
 
-    #[cfg(not(rmc))]
+    #[cfg(not(kani))]
     pub fn checked_new(
         mem: &GuestMemoryMmap,
         desc_table: GuestAddress,

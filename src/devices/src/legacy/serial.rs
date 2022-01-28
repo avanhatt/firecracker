@@ -507,7 +507,7 @@ impl Subscriber for Serial {
     }
 }
 
-// #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::io;

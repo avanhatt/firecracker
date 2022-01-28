@@ -104,18 +104,20 @@ impl RequestHeader {
     /// need to do an explicit little endian read as all reads are little endian by default.
     /// When running on a big endian platform, this code should not compile, and support
     /// for explicit little endian reads is required.
-    #[cfg(not(rmc))]
+    #[cfg(not(kani))]
     #[cfg(target_endian = "little")]
     fn read_from(memory: &GuestMemoryMmap, addr: GuestAddress) -> result::Result<Self, Error> {
         let request_header: RequestHeader = memory.read_obj(addr).map_err(Error::GuestMemory)?;
         Ok(request_header)
     }
 
-    #[cfg(rmc)]
+    #[cfg(kani)]
     fn read_from(memory: &GuestMemoryMmap, addr: GuestAddress) -> result::Result<Self, Error> {
-        if rmc::nondet() {
-            let result : RequestHeader = rmc::nondet();
-            return Ok(result);
+        if kani::any() {
+            unsafe {
+                let result : RequestHeader = kani::any_raw();
+                return Ok(result);   
+            }
         } else {
             return Err(Error::DescriptorChainTooShort); //< should be GuestMemory error
         }
@@ -280,8 +282,8 @@ impl Request {
     }
 }
 
-#[cfg(rmc)]
-mod rmc_tests {
+#[cfg(kani)]
+mod tests {
     use super::*;
     use vm_memory::{Address, GuestAddress, GuestMemory};
 
@@ -292,15 +294,15 @@ mod rmc_tests {
     #[no_mangle]
     fn parse_harness() {
         let mem = GuestMemoryMmap::new();
-        let queue_size: u16 = rmc::nondet();
-        rmc::assume(is_nonzero_pow2(queue_size));
+        let queue_size: u16 = kani::any();
+        kani::assume(is_nonzero_pow2(queue_size));
 
-        let index: u16 = rmc::nondet();
-        let desc_table = GuestAddress(rmc::nondet::<u64>());
+        let index: u16 = kani::any();
+        let desc_table = GuestAddress(kani::any::<u64>());
         {
             match DescriptorChain::checked_new(&mem, desc_table, queue_size, index) {
                 Some(desc) => {
-                    rmc::assume((index as u64) * 16 < u64::MAX - desc_table.0);
+                    kani::assume((index as u64) * 16 < u64::MAX - desc_table.0);
                     let addr = desc_table.0 + (index as u64) * 16;
                     assert!(desc.index == index);
                     assert!(desc.index < queue_size);
