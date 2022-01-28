@@ -19,7 +19,7 @@ ls *.json | parallel -j 16 symtab2gb {} --out {.}.out &> /dev/null || :
 # Combine restriction files from crate + dependencies into one
 echo "KANI: Linking restrictions"
 RESTRICTIONS=restrictions.json
-/scratch/alexa/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
+/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
 
 HARNESS=parse_harness
 mkdir $HARNESS
@@ -34,6 +34,5 @@ goto-instrument --remove-function-pointers $HARNESS/b.out $HARNESS/c.out
 goto-instrument --drop-unused-functions  $HARNESS/c.out $HARNESS/d.out
 goto-instrument --dump-c $HARNESS/d.out $HARNESS/d.c
 
-# echo "KANI: Running CBMC"
-# time cbmc $HARNESS/d.out --bounds-check --pointer-check --pointer-primitive-check --conversion-check --div-by-zero-check --float-overflow-check --nan-check --pointer-overflow-check --signed-overflow-check --undefined-shift-check --object-bits 13 --unwinding-assertions --unwind 2
+echo "KANI: Running CBMC"
 time cbmc $HARNESS/d.out --object-bits 13 --unwinding-assertions --unwind 2
