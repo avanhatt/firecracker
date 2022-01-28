@@ -3,7 +3,6 @@ set -e
 rm -rf build
 cd src/devices/src/virtio/
 
-# New flag: -Z restrict_vtable_fn_ptrs
 export RUSTC_LOG=error
 export KANIFLAGS="--goto-c"
 export RUSTFLAGS="--cfg=kani --kani-flags"
