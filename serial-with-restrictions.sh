@@ -19,7 +19,7 @@ ls *.json | parallel -j 16 symtab2gb {} --out {.}.out &> /dev/null || :
 # Combine restriction files from crate + dependencies into one
 echo "KANI: Linking restrictions"
 RESTRICTIONS=restrictions.json
-/scratch/alexa/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
+/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
 
 HARNESS=serial_harness
 mkdir $HARNESS
