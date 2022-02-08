@@ -6,7 +6,7 @@ cd src/devices/src/virtio/
 # New flag: --restrict-vtable-fn-ptrs
 export RUSTC_LOG=error
 export KANIFLAGS="--goto-c --restrict-vtable-fn-ptrs"
-export RUSTFLAGS="--cfg=kani --kani-flags"
+export RUSTFLAGS="--cfg=kani --kani-flags -Awarnings"
 export RUSTC="kani-rustc"
 cargo build --target x86_64-unknown-linux-gnu
 
@@ -19,7 +19,7 @@ ls *.json | parallel -j 16 symtab2gb {} --out {.}.out &> /dev/null || :
 # Combine restriction files from crate + dependencies into one
 echo "KANI: Linking restrictions"
 RESTRICTIONS=restrictions.json
-/scratch/alexa/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
+/rmc/target/release/kani-link-restrictions . $RESTRICTIONS
 
 HARNESS=parse_harness
 mkdir $HARNESS
