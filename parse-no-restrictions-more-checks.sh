@@ -13,7 +13,7 @@ echo "KANI: Build done"
 
 echo "KANI: Getting Goto-C from symbol tables"
 cd ../../../../build/cargo_target/x86_64-unknown-linux-gnu/debug/deps/
-ls *.json | parallel -j 16 symtab2gb {} --out {.}.out &> /dev/null || :
+ls *symtab.json | parallel -j 16 symtab2gb {} --out {.}.out &> /dev/null || :
 
 HARNESS=parse_harness
 mkdir $HARNESS
